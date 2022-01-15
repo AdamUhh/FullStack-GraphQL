@@ -1,4 +1,3 @@
-import { EntityManager } from "@mikro-orm/postgresql";
 import argon2 from "argon2";
 import {
   Arg,
@@ -9,6 +8,7 @@ import {
   Query,
   Resolver,
 } from "type-graphql";
+import { getConnection } from "typeorm";
 import { v4 } from "uuid";
 import { COOKIE_NAME, FORGET_PASSWORD_PREFIX } from "../constants";
 import { sendEmail } from "../utils/sendEmail";
@@ -40,24 +40,25 @@ class UserResponse {
 @Resolver()
 export class UserResolver {
   @Query(() => User, { nullable: true })
-  async me(@Ctx() { em, req }: MyContext) {
+  me(@Ctx() { req }: MyContext) {
     // You are not logged in
     if (!req.session.userId) {
       return null;
     }
-    const user = await em.findOne(User, { id: req.session.userId });
-    return user;
+
+    return User.findOne(req.session.userId);
   }
+
   @Query(() => [User])
-  async findUsers(@Ctx() { em }: MyContext): Promise<User[]> {
-    return await em.find(User, {});
+  async findUsers(): Promise<User[]> {
+    return await User.find();
   }
 
   @Mutation(() => UserResponse)
   async changePassword(
     @Arg("token") token: string,
     @Arg("newPassword") newPassword: string,
-    @Ctx() { em, req, redis }: MyContext
+    @Ctx() { req, redis }: MyContext
   ): Promise<UserResponse> {
     // Validate
     if (newPassword.length <= 2) {
@@ -82,8 +83,8 @@ export class UserResolver {
           },
         ],
       };
-
-    const user = await em.findOne(User, { id: parseInt(userId) });
+    const userIdNum = parseInt(userId);
+    const user = await User.findOne(userIdNum);
 
     if (!user)
       return {
@@ -95,8 +96,10 @@ export class UserResolver {
         ],
       };
 
-    user.password = await argon2.hash(newPassword);
-    em.persistAndFlush(user);
+    await User.update(
+      { id: userIdNum },
+      { password: await argon2.hash(newPassword) }
+    );
 
     // remove the key from redis, so the user cannot use the same token
     // to change the password again
@@ -111,10 +114,10 @@ export class UserResolver {
   @Mutation(() => Boolean)
   async forgotPassword(
     @Arg("email") email: string,
-    @Ctx() { em, redis }: MyContext
+    @Ctx() { redis }: MyContext
   ) {
     // check if user exists in database with provided email
-    const user = await em.findOne(User, { email });
+    const user = await User.findOne({ where: { email } });
 
     if (!user) {
       // email is not in the database
@@ -142,7 +145,7 @@ export class UserResolver {
   async register(
     // UsernamePasswordInput is an InputType, that we only use for @Mutation
     @Arg("options") options: UsernamePasswordInput,
-    @Ctx() { em, req }: MyContext
+    @Ctx() { req }: MyContext
   ): Promise<UserResponse> {
     // Validation
     const errors = validateRegister(options);
@@ -150,30 +153,23 @@ export class UserResolver {
 
     // Hashing the users password before saving to database
     const hashedPassword = await argon2.hash(options.password);
-    // const user = em.create(User, { username: options.username, password: hashedPassword, });
+
     let user;
+    
     try {
-      // When you need to execute some SQL query without all the ORM stuff involved,
-      // you can either compose the query yourself, or use the QueryBuilder helper
-      // to construct the query for you: (Under the hood, QueryBuilder uses Knex.js to compose and run queries)
-      // Instead of createdAt and updatedAt (like how we called it) inside /server/src/entities/User.ts/
-      // mikro-orm converts it to underscores instead of camelCase, and Knex does not know this
-      // Therefore, we also need to tell it what the column is in the database (created_at and updated_at)
-      // https://mikro-orm.io/docs/query-builder/
-      const result = await (em as EntityManager)
-        .createQueryBuilder(User)
-        .getKnexQuery() // instance of Knex' QueryBuilder
-        .insert({
+      const result = await getConnection()
+        .createQueryBuilder()
+        .insert()
+        .into(User)
+        .values({
           username: options.username,
           email: options.email,
           password: hashedPassword,
-          created_at: new Date(),
-          updated_at: new Date(),
         })
-        .returning("*"); //sql syntax to return all the fields from the user
-      user = result[0]; // first element of the result
+        .returning("*") //sql syntax to return all the fields from the user
+        .execute();
+      user = result.raw[0];
     } catch (error) {
-      // || error.detail.includes("already exists")
       // validation for duplicate username error
       if (error.code === "23505") {
         return {
@@ -203,14 +199,13 @@ export class UserResolver {
   async login(
     @Arg("usernameOrEmail") usernameOrEmail: string,
     @Arg("password") password: string,
-    @Ctx() { em, req }: MyContext
+    @Ctx() { req }: MyContext
   ): Promise<UserResponse> {
     // checking database for username
-    const user = await em.findOne(
-      User,
+    const user = await User.findOne(
       usernameOrEmail.includes("@")
-        ? { email: usernameOrEmail }
-        : { username: usernameOrEmail }
+        ? { where: { email: usernameOrEmail } }
+        : { where: { username: usernameOrEmail } }
     );
     // validation if user does not exist
     if (!user) {
@@ -242,7 +237,6 @@ export class UserResolver {
     // this will set a cookie on the user and keep them logged in
     req.session.userId = user.id;
 
-    console.log(req.header("X-Forwarded-Proto"));
     return {
       user,
     };
@@ -264,12 +258,9 @@ export class UserResolver {
   }
 
   @Mutation(() => Boolean)
-  async deleteUser(
-    @Arg("id") id: number,
-    @Ctx() { em }: MyContext
-  ): Promise<boolean> {
+  async deleteUser(@Arg("id") id: number): Promise<boolean> {
     try {
-      em.nativeDelete(User, { id });
+      User.delete(id);
       return true;
     } catch (err) {
       console.log(err);

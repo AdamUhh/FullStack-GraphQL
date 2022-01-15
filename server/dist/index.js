@@ -3,7 +3,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const core_1 = require("@mikro-orm/core");
 const apollo_server_express_1 = require("apollo-server-express");
 const connect_redis_1 = __importDefault(require("connect-redis"));
 const cors_1 = __importDefault(require("cors"));
@@ -11,17 +10,26 @@ const express_1 = __importDefault(require("express"));
 const express_session_1 = __importDefault(require("express-session"));
 const ioredis_1 = __importDefault(require("ioredis"));
 require("reflect-metadata");
+const Post_1 = require("./entities/Post");
+const User_1 = require("./entities/User");
 const type_graphql_1 = require("type-graphql");
+const typeorm_1 = require("typeorm");
 const constants_1 = require("./constants");
-const mikro_orm_config_1 = __importDefault(require("./mikro-orm.config"));
 const hello_1 = require("./resolvers/hello");
 const post_1 = require("./resolvers/post");
 const user_1 = require("./resolvers/user");
 const main = async () => {
-    const orm = await core_1.MikroORM.init(mikro_orm_config_1.default);
-    await orm.getMigrator().up();
+    await (0, typeorm_1.createConnection)({
+        type: "postgres",
+        database: "lireddit2",
+        username: "postgres",
+        password: "postgresdocker",
+        logging: true,
+        synchronize: true,
+        entities: [Post_1.Post, User_1.User],
+    });
     const app = (0, express_1.default)();
-    app.set("trust proxy", process.env.NODE_ENV !== "production");
+    app.set("trust proxy", !constants_1.__prod__);
     app.use((0, cors_1.default)({
         credentials: true,
         origin: ["http://localhost:3000", "https://studio.apollographql.com"],
@@ -47,10 +55,9 @@ const main = async () => {
             validate: false,
         }),
         context: ({ req, res }) => ({
-            em: orm.em,
             req,
             res,
-            redis: redisClient
+            redis: redisClient,
         }),
     });
     await apolloServer.start();

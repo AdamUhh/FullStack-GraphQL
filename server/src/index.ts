@@ -1,4 +1,3 @@
-import { MikroORM } from "@mikro-orm/core";
 import { ApolloServer } from "apollo-server-express";
 import connectRedis from "connect-redis";
 import cors from "cors";
@@ -6,31 +5,36 @@ import express from "express";
 import session from "express-session";
 import Redis from "ioredis";
 import "reflect-metadata";
+import { Post } from "./entities/Post";
+import { User } from "./entities/User";
 import { buildSchema } from "type-graphql";
-import { COOKIE_NAME } from "./constants";
-import mikroConfig from "./mikro-orm.config";
+import { createConnection } from "typeorm";
+import { COOKIE_NAME, __prod__ } from "./constants";
 import { HelloResolver } from "./resolvers/hello";
 import { PostResolver } from "./resolvers/post";
 import { UserResolver } from "./resolvers/user";
 import { MyContext } from "./types";
 
 const main = async () => {
-  // Connect to the postgreSQL database
-  const orm = await MikroORM.init(mikroConfig);
+  await createConnection({
+    type: "postgres",
+    database: "lireddit2",
+    username: "postgres",
+    password: "postgresdocker",
+    logging: true, // log all the sql automatically
+    synchronize: true, // create the tables automatically for you
+    entities: [Post, User],
+  });
+
+  // Migrations will be added later on
 
   //! Delete all the users/wipe all data
-  // await orm.em.nativeDelete(User, {});
-
-  //? Automatically run the migration before anything else
-  //? Once you get into production you'll need to synchronize model changes into the database.
-  //? Typically it is unsafe to use synchronize: true for schema synchronization on production once you get data in your database.
-  //? Here is where migrations come to help.
-  //? A migration is just a single file with sql queries to update a database schema and apply new changes to an existing database
-  await orm.getMigrator().up();
+  // await User.delete({})
 
   const app = express();
-  // 'trust proxy' is required in order for the login details to be saved to cache
-  app.set("trust proxy", process.env.NODE_ENV !== "production");
+  // 'trust proxy' is required in order for the login details to be saved to cache in localhost
+  app.set("trust proxy", !__prod__);
+
   app.use(
     cors({
       credentials: true,
@@ -79,10 +83,9 @@ const main = async () => {
     }),
     // context is a special object that is accessible by all the resolvers
     context: ({ req, res }): MyContext => ({
-      em: orm.em,
       req,
       res,
-      redis: redisClient
+      redis: redisClient,
     }),
   });
 
