@@ -18,8 +18,9 @@ const constants_1 = require("./constants");
 const hello_1 = require("./resolvers/hello");
 const post_1 = require("./resolvers/post");
 const user_1 = require("./resolvers/user");
+const path_1 = __importDefault(require("path"));
 const main = async () => {
-    await (0, typeorm_1.createConnection)({
+    const conn = await (0, typeorm_1.createConnection)({
         type: "postgres",
         database: "lireddit2",
         username: "postgres",
@@ -27,7 +28,9 @@ const main = async () => {
         logging: true,
         synchronize: true,
         entities: [Post_1.Post, User_1.User],
+        migrations: [path_1.default.join(__dirname, "./migrations/*")],
     });
+    await conn.runMigrations();
     const app = (0, express_1.default)();
     app.set("trust proxy", !constants_1.__prod__);
     app.use((0, cors_1.default)({

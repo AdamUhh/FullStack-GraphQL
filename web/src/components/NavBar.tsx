@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Button, Flex, Link } from "@chakra-ui/react";
-import NextLink from "next/link";
 import { useLogoutMutation, useMeQuery } from "../generated/graphql";
 import { isServer } from "../utils/isServer";
+import NextLink from "next/link";
 
 interface NavBarProps {}
 
@@ -18,8 +18,8 @@ export const NavBar: React.FC<NavBarProps> = ({}) => {
     // therefore, we can use pause to stop it from fetching the current user (from the server specifically)
     // by checking if the window variable is defined (on the server, it is not defined)
     pause: isServer(),
-  }); 
-  
+  });
+
   let body = null;
   if (fetching) {
     // data is loading
@@ -51,7 +51,10 @@ export const NavBar: React.FC<NavBarProps> = ({}) => {
     );
   }
   return (
-    <Flex bg="tomato" p={4}>
+    <Flex zIndex={2} position="sticky" bg="#444" p={4}>
+        <NextLink href="/">
+          <Link>Home</Link>
+        </NextLink>
       <Box ml={"auto"}>{body}</Box>
     </Flex>
   );

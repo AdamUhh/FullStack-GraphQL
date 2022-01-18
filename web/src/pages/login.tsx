@@ -30,7 +30,18 @@ const Login: React.FC<{}> = ({}) => {
             setErrors(toErrorMap(res.data.login.errors));
           } else if (res.data?.login.user) {
             // successfully registered user
-            router.push("/"); // push to home page
+
+            // due to useIsAuth.ts, we have saved the initial link that the user clicked
+            // but was redirected due to not being logged in
+            // after logging in, the url path is then saved inside router.query.next due
+            // to useIsAuth.ts saving the path using '"/login?next=" + router.pathname'
+            // now, after logging in, we check if there is a path saved and if so, redirect there
+            // else, redirect to home page
+            if (typeof router.query.next === "string") {
+              router.push(router.query.next);
+            } else {
+              router.push("/"); // push to home page
+            }
           }
         }}
       >

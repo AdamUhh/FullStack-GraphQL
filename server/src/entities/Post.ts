@@ -1,3 +1,4 @@
+import { User } from "./User";
 import { ObjectType, Field } from "type-graphql";
 import {
   Entity,
@@ -6,6 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   BaseEntity,
+  ManyToOne,
 } from "typeorm";
 
 //? Converting the class into an Object Type for /resolvers/post.ts/ to work
@@ -20,6 +22,31 @@ export class Post extends BaseEntity {
   @PrimaryGeneratedColumn() // @PrimaryGeneratedColumn() is part of the 'TYPEORM' syntax
   id!: number; // the ! mean it is not null
 
+  @Field()
+  @Column()
+  title!: string; // the ! mean it is not null
+
+  @Field()
+  @Column()
+  text!: string;
+
+  // this is essentially likes and dislikes
+  @Field()
+  @Column({ type: "int", default: 0 })
+  points!: number;
+
+  @Field()
+  @Column()
+  creatorId: number;
+
+  // this will set up a foreign key to the Users table
+  // we will store that foreign key in the creatorId
+  // We are pointing it to the type we want to be connected to, in this case 'User'
+  // We are then saying that inside this type, is a field called posts
+  // Which is used to essentially say, these many posts belong to this one user
+  @ManyToOne(() => User, (user) => user.posts)
+  creator: User;
+
   // Standard fields such as 'createdAt and 'updatedAt' are good to have
   @Field(() => String)
   @CreateDateColumn() // is a database table and is part of the 'ORM' syntax
@@ -28,8 +55,4 @@ export class Post extends BaseEntity {
   @Field(() => String)
   @UpdateDateColumn()
   updatedAt: Date;
-
-  @Field()
-  @Column()
-  title!: string; // the ! mean it is not null
 }

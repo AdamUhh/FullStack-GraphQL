@@ -2,6 +2,7 @@ import { Box, Button, Flex, Link } from "@chakra-ui/react";
 import { Form, Formik } from "formik";
 import { NextPage } from "next";
 import { withUrqlClient } from "next-urql";
+import NextLink from "next/link";
 import { useRouter } from "next/router";
 import React, { useState } from "react";
 import { InputField } from "../../components/InputField";
@@ -9,9 +10,8 @@ import { Wrapper } from "../../components/Wrapper";
 import { useChangePasswordMutation } from "../../generated/graphql";
 import { createUrqlClient } from "../../utils/createUrqlClient";
 import { toErrorMap } from "../../utils/toErrorMap";
-import NextLink from "next/link";
 
-const ChangePassword: NextPage<{ token: string }> = ({ token }) => {
+const ChangePassword: NextPage = () => {
   const router = useRouter();
   const [, changePassword] = useChangePasswordMutation();
   const [tokenError, setTokenError] = useState("");
@@ -22,7 +22,8 @@ const ChangePassword: NextPage<{ token: string }> = ({ token }) => {
         onSubmit={async (values, { setErrors }) => {
           const res = await changePassword({
             newPassword: values.newPassword,
-            token,
+            token:
+              typeof router.query.token === "string" ? router.query.token : "",
           });
           if (res.data?.changePassword.errors) {
             const errorMap = toErrorMap(res.data.changePassword.errors);
@@ -38,7 +39,7 @@ const ChangePassword: NextPage<{ token: string }> = ({ token }) => {
           }
         }}
       >
-        {({ values, handleChange, isSubmitting }) => (
+        {({ isSubmitting }) => (
           <Form>
             <InputField
               name="newPassword"
@@ -75,10 +76,15 @@ const ChangePassword: NextPage<{ token: string }> = ({ token }) => {
 // and pass it to the component
 // ex: http://localhost:3000/change-password/a57c49a3-9280-44d0-89af-1797fdd19f77
 // gets a57c49a3-9280-44d0-89af-1797fdd19f77
-ChangePassword.getInitialProps = ({ query }) => {
-  return {
-    token: query.token as string,
-  };
-};
+// no longer needed as router.query can be used to get the token instead
+// Additionally, if some of the pages dont use getInitialProps,
+// it will make the page static and optimize it (Feature from nextjs)
+// getInitialProps is normally used to Server-side render the page based on a query parameter
+// but in this case, we do not need it
+// ChangePassword.getInitialProps = ({ query }) => {
+//   return {
+//     token: query.token as string,
+//   };
+// };
 
 export default withUrqlClient(createUrqlClient)(ChangePassword);

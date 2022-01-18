@@ -14,22 +14,28 @@ import { HelloResolver } from "./resolvers/hello";
 import { PostResolver } from "./resolvers/post";
 import { UserResolver } from "./resolvers/user";
 import { MyContext } from "./types";
+import path from "path";
 
 const main = async () => {
-  await createConnection({
+  const conn = await createConnection({
     type: "postgres",
     database: "lireddit2",
     username: "postgres",
     password: "postgresdocker",
     logging: true, // log all the sql automatically
     synchronize: true, // create the tables automatically for you
+    // synchronize: false,
     entities: [Post, User],
+    migrations: [path.join(__dirname, "./migrations/*")],
   });
+
+  await conn.runMigrations();
 
   // Migrations will be added later on
 
-  //! Delete all the users/wipe all data
+  //! Delete all the users/post/wipe data
   // await User.delete({})
+  // await Post.delete({})
 
   const app = express();
   // 'trust proxy' is required in order for the login details to be saved to cache in localhost
