@@ -100,15 +100,17 @@ export class PostResolver {
           set points = points + $1
           where id = $2
         `,
+          [2 * realValue, postId]
           // ?? 2 * because if they already upvoted and they click downvote, it will go to -1 and not 0
           // ?? 0 if the user voted and unvoted, we need this logic or else it will calculate votes incorrectly (will be -2 instead of -1)
-          [updoot.value === 0 ? realValue : 2 * realValue, postId]
+          // [updoot.value === 0 ? realValue : 2 * realValue, postId]
         );
       });
     }
     // ? The user has voted on the post before
     // ?? if the updoot value is 1 and they click on it again, it will reset to 0
     // @note: create this yourself since it seems he didnt account for it
+    // ! @note: Add this part later, at the end of the tutorial, since he is still editing it later on
     // else if (updoot && updoot.value === realValue) {
     //   await getConnection().transaction(async (tm) => {
     //     await tm.query(

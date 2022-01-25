@@ -170,6 +170,7 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
                   fragment _ on Post {
                     id
                     points
+                    voteStatus
                   }
                 `,
                 { id: postId } as any

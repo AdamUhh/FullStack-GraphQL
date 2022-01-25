@@ -65,7 +65,7 @@ let PostResolver = class PostResolver {
           update post
           set points = points + $1
           where id = $2
-        `, [updoot.value === 0 ? realValue : 2 * realValue, postId]);
+        `, [2 * realValue, postId]);
             });
         }
         else if (!updoot) {
