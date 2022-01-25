@@ -2,11 +2,10 @@ import argon2 from "argon2";
 import {
   Arg,
   Ctx,
-  Field,
-  Mutation,
+  Field, FieldResolver, Mutation,
   ObjectType,
   Query,
-  Resolver,
+  Resolver, Root
 } from "type-graphql";
 import { getConnection } from "typeorm";
 import { v4 } from "uuid";
@@ -16,7 +15,6 @@ import { validateRegister } from "../utils/validateRegister";
 import { User } from "./../entities/User";
 import { MyContext } from "./../types";
 import { UsernamePasswordInput } from "./UsernamePasswordInput";
-
 @ObjectType()
 class FieldError {
   @Field()
@@ -37,8 +35,20 @@ class UserResponse {
   user?: User;
 }
 
-@Resolver()
+@Resolver(User)
 export class UserResolver {
+  // check out post.ts to understand FieldResolver
+  // (if the user queries for an email of a post,
+  // if they are not the post owner, it will not show it to them)
+  @FieldResolver(() => String)
+  email(@Root() user: User, @Ctx() { req }: MyContext) {
+    // This is the current user and its ok to show them their own email
+    if (req.session.userId === user.id) return user.email;
+
+    // current user wants to see someone elses email
+    return "";
+  }
+
   @Query(() => User, { nullable: true })
   me(@Ctx() { req }: MyContext) {
     // You are not logged in
@@ -155,7 +165,7 @@ export class UserResolver {
     const hashedPassword = await argon2.hash(options.password);
 
     let user;
-    
+
     try {
       const result = await getConnection()
         .createQueryBuilder()

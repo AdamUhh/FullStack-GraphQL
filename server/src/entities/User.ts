@@ -9,6 +9,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from "typeorm";
+import { Updoot } from "./Updoot";
 // Converting the class into an Object Type for /resolvers/post.ts/ to work
 // By adding Fields(), you are displaying  it to the graphql schema
 // This means that you will not be able to query for something that doesnt have a Field() above it
@@ -36,6 +37,9 @@ export class User extends BaseEntity {
   // Which is used to essentially say, that one user can have many posts
   @OneToMany(() => Post, (post) => post.creator)
   posts: Post[];
+
+  @OneToMany(() => Updoot, (updoot) => updoot.user)
+  updoots: Updoot[];
 
   // Standard fields (createdAt, updatedAt) that are good to have
   @Field(() => String)

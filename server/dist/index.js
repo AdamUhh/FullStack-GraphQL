@@ -19,6 +19,7 @@ const hello_1 = require("./resolvers/hello");
 const post_1 = require("./resolvers/post");
 const user_1 = require("./resolvers/user");
 const path_1 = __importDefault(require("path"));
+const Updoot_1 = require("./entities/Updoot");
 const main = async () => {
     const conn = await (0, typeorm_1.createConnection)({
         type: "postgres",
@@ -27,7 +28,7 @@ const main = async () => {
         password: "postgresdocker",
         logging: true,
         synchronize: true,
-        entities: [Post_1.Post, User_1.User],
+        entities: [Post_1.Post, User_1.User, Updoot_1.Updoot],
         migrations: [path_1.default.join(__dirname, "./migrations/*")],
     });
     await conn.runMigrations();

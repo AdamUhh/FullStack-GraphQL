@@ -12,9 +12,12 @@ import {
   MeDocument,
   MeQuery,
   RegisterMutation,
+  VoteMutationVariables,
 } from "../generated/graphql";
 import { betterUpdateQuery } from "./betterUpdateQuery";
 import Router from "next/router";
+import gql from "graphql-tag";
+import { isServer } from "./isServer";
 
 // Anytime there is an error in anything that is run, its gonna come here
 const errorExchange: Exchange =
@@ -50,7 +53,7 @@ const cursorPagination = (): Resolver => {
 
     //? check if the data is in the cache, and return it from the cache
 
-    //Output: after clicking load more btn, it will change 'posts({"limit":10})' to 'posts({"cursor:":"1762541762", "limit":10})
+    //Output: after clicking load more btn, it will change 'posts({"limit":10})' to 'posts({"limit":10, "cursor:":"1762541762"})'
     const fieldKey = `${fieldName}(${stringifyVariables(fieldArgs)})`;
     // check if the posts are in the cache or not
     const isItInTheCache = cache.resolve(
@@ -79,9 +82,9 @@ const cursorPagination = (): Resolver => {
 
       results.push(...data); //combine the pagination lists (combination of the first, second, etc. pages)
     });
-    
+
     return {
-      __typename: "PaginatedPosts",
+      __typename: "PaginatedPosts", //required or it will not work
       hasMore,
       posts: results,
     }; // found data in the cache
@@ -91,88 +94,161 @@ const cursorPagination = (): Resolver => {
 // The next-urql package includes setup for react-ssr-prepass already,
 // which automates a lot of the complexity of setting up server-side
 // rendering with urql
-export const createUrqlClient = (ssrExchange: any) => ({
-  url: "http://localhost:5000/graphql",
-  fetchOptions: {
-    credentials: "include" as const,
-  },
-  exchanges: [
-    dedupExchange,
-    cacheExchange({
-      keys: {
-        // Its saying PaginatedPosts is a type we created, but we dont have an Id on that field
-        // so we just have to say that there is no Id
-        PaginatedPosts: () => null,
-      },
-      resolvers: {
-        Query: {
-          // Client size resolvers that will run whenever the Query is run
-          // we can alter how the query result looks
-          // you can do this for computed values and add field resolvers on the client size too
-          // so the name of this will match what we have when fetching posts, which is 'posts' insize our posts.graphql
-          posts: cursorPagination(),
+export const createUrqlClient = (ssrExchange: any, ctx: any) => {
+  // ?? This is an extremely important part, as it will send the user cookies
+  // ?? this means that on ssr, we can access req.session.userId
+  // ?? this is used in side /post.ts/ in order to access the req.session.userId
+  // ?? for the vote system to properly work
+  // ?? works by send the cookies to the nextjs server, and the nextjs server
+  // ?? is including them in the header, which is then send along to the graphql api
+  let cookie = "";
+  if (isServer()) {
+    cookie = ctx.req.headers.cookie;
+  }
+
+  return {
+    url: "http://localhost:5000/graphql",
+    fetchOptions: {
+      credentials: "include" as const,
+      headers: cookie
+        ? {
+            cookie,
+          }
+        : undefined,
+    },
+    exchanges: [
+      dedupExchange,
+      cacheExchange({
+        keys: {
+          // Its saying PaginatedPosts is a type we created, but we dont have an Id on that field
+          // so we just have to say that there is no Id
+          PaginatedPosts: () => null,
         },
-      },
-      updates: {
-        Mutation: {
-          logout: (_result, args, cache, info) => {
-            // cache.invalidate() // invalidates the user
-
-            // set the MeQuery value to null
-            betterUpdateQuery<LogoutMutation, MeQuery>(
-              cache,
-              { query: MeDocument },
-              _result,
-              () => ({ me: null })
-            );
-          },
-
-          // This is to update the cache whenever we login or register
-          // specifically, we are updating the MeQuery and putting the user in it
-          login: (_result, args, cache, info) => {
-            // Original Method to do this
-            // cache.updateQuery({ query: MeDocument }, (data) => {});
-
-            // The reason for this is because using the original method
-            // The typescript types are not good enough
-            // so we created our own that has better
-            betterUpdateQuery<LoginMutation, MeQuery>(
-              cache,
-              { query: MeDocument },
-              _result,
-              (result, query) => {
-                if (result.login.errors) {
-                  return query;
-                } else {
-                  return {
-                    me: result.login.user,
-                  };
-                }
-              }
-            );
-          },
-
-          register: (_result, args, cache, info) => {
-            betterUpdateQuery<RegisterMutation, MeQuery>(
-              cache,
-              { query: MeDocument },
-              _result,
-              (result, query) => {
-                if (result.register.errors) {
-                  return query;
-                } else {
-                  return {
-                    me: result.register.user,
-                  };
-                }
-              }
-            );
+        resolvers: {
+          Query: {
+            // Client size resolvers that will run whenever the Query is run
+            // we can alter how the query result looks
+            // you can do this for computed values and add field resolvers on the client size too
+            // so the name of this will match what we have when fetching posts, which is 'posts' insize our posts.graphql
+            posts: cursorPagination(),
           },
         },
-      },
-    }),
-    errorExchange,
-    ssrExchange,
-    fetchExchange,
-  ],
-});
+        updates: {
+          Mutation: {
+            createPost: (_result, args, cache, info) => {
+              // ? Looping over all of the paginated items / queries that we could possibly call
+              // ? and we invalidate all of them (essentially restart their cache?)
+              // ?? for output, check out the comments inside cursorPagination with the below variable names
+              const allFields = cache.inspectFields("Query");
+              const fieldInfos = allFields.filter(
+                (info) => info.fieldName === "posts"
+              );
+              // ? Loop to invalidate all (new) queries that will appear due to load more
+              fieldInfos.forEach((fi) => {
+                // console.log("start"); //used for testing
+                // console.log(cache.inspectFields("Query")); //used for testing
+
+                // ? when called, it will essentially update the cache
+                // ? by invalidating the query and refetch it from the server
+                // ? Invalidating a specific query
+                // ?? fi.arguments -> {"limit": 15}
+                cache.invalidate("Query", "posts", fi.arguments || {});
+                // console.log(cache.inspectFields("Query")); //used for testing
+                // console.log("end"); //used for testing
+              });
+            },
+            // ?? we could have just done this to update the cache for the votes, but instead
+            // ?? but he decided to do it another, way which includes reading and updating fragments
+            // vote: (_result, args, cache, info) => {
+            //   cache.invalidate("Query", "posts", { limit: 15 });
+            // },
+            vote: (_result, args, cache, info) => {
+              const { postId, value } = args as VoteMutationVariables;
+
+              const data = cache.readFragment(
+                gql`
+                  fragment _ on Post {
+                    id
+                    points
+                  }
+                `,
+                { id: postId } as any
+              );
+              console.log(data);
+              if (data) {
+                if (data.voteStatus === args.value) return;
+                // ?? if we havent voted before, it should be a 1,
+                // ?? but if we have voted, we are switching out vote, so a 2
+                const newPoints =
+                  (data.points as number) + (!data.voteStatus ? 1 : 2) * value;
+                cache.writeFragment(
+                  gql`
+                    fragment __ on Post {
+                      points
+                      voteStatus
+                    }
+                  `,
+                  { id: postId, points: newPoints, voteStatus: value } as any
+                );
+              }
+            },
+            logout: (_result, args, cache, info) => {
+              // set the MeQuery value to null
+              betterUpdateQuery<LogoutMutation, MeQuery>(
+                cache,
+                { query: MeDocument },
+                _result,
+                () => ({ me: null })
+              );
+            },
+
+            // This is to update the cache whenever we login or register
+            // specifically, we are updating the MeQuery and putting the user in it
+            login: (_result, args, cache, info) => {
+              // Original Method to do this
+              // cache.updateQuery({ query: MeDocument }, (data) => {});
+
+              // The reason for this is because using the original method
+              // The typescript types are not good enough
+              // so we created our own that has better logic for our needs
+              betterUpdateQuery<LoginMutation, MeQuery>(
+                cache,
+                { query: MeDocument },
+                _result,
+                (result, query) => {
+                  if (result.login.errors) {
+                    return query;
+                  } else {
+                    return {
+                      me: result.login.user,
+                    };
+                  }
+                }
+              );
+            },
+
+            register: (_result, args, cache, info) => {
+              betterUpdateQuery<RegisterMutation, MeQuery>(
+                cache,
+                { query: MeDocument },
+                _result,
+                (result, query) => {
+                  if (result.register.errors) {
+                    return query;
+                  } else {
+                    return {
+                      me: result.register.user,
+                    };
+                  }
+                }
+              );
+            },
+          },
+        },
+      }),
+      errorExchange,
+      ssrExchange,
+      fetchExchange,
+    ],
+  };
+};

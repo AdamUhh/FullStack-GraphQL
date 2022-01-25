@@ -15,6 +15,7 @@ import { PostResolver } from "./resolvers/post";
 import { UserResolver } from "./resolvers/user";
 import { MyContext } from "./types";
 import path from "path";
+import { Updoot } from "./entities/Updoot";
 
 const main = async () => {
   const conn = await createConnection({
@@ -25,7 +26,7 @@ const main = async () => {
     logging: true, // log all the sql automatically
     synchronize: true, // create the tables automatically for you
     // synchronize: false,
-    entities: [Post, User],
+    entities: [Post, User, Updoot],
     migrations: [path.join(__dirname, "./migrations/*")],
   });
 
@@ -34,8 +35,9 @@ const main = async () => {
   // Migrations will be added later on
 
   //! Delete all the users/post/wipe data
-  // await User.delete({})
+  // await Updoot.delete({})
   // await Post.delete({})
+  // await User.delete({})
 
   const app = express();
   // 'trust proxy' is required in order for the login details to be saved to cache in localhost
@@ -47,7 +49,7 @@ const main = async () => {
       origin: ["http://localhost:3000", "https://studio.apollographql.com"],
     })
   );
-
+    
   //? Redis, which stands for Remote Dictionary Server, is a fast, open source, in-memory, key-value data store
   //? In this case, we are using it as a cache store to store the users login data
   // In the documentation, they put the below code (that uses require)
