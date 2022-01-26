@@ -7,6 +7,7 @@ import {
 } from "urql";
 import { pipe, tap } from "wonka"; //comes with urql
 import {
+  DeletePostMutationVariables,
   LoginMutation,
   LogoutMutation,
   MeDocument,
@@ -101,9 +102,9 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
   // ?? for the vote system to properly work
   // ?? works by send the cookies to the nextjs server, and the nextjs server
   // ?? is including them in the header, which is then send along to the graphql api
-  let cookie = "";
+  let cookie = ""; // a cookie is the userId in this case (i think)
   if (isServer()) {
-    cookie = ctx.req.headers.cookie;
+    cookie = ctx?.req?.headers?.cookie;
   }
 
   return {
@@ -135,6 +136,13 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
         },
         updates: {
           Mutation: {
+            deletePost: (_result, args, cache, info) => {
+              // invalidate by default will make the post 'null'
+              cache.invalidate({
+                __typename: "Post",
+                id: (args as DeletePostMutationVariables).id,
+              });
+            },
             createPost: (_result, args, cache, info) => {
               // ? Looping over all of the paginated items / queries that we could possibly call
               // ? and we invalidate all of them (essentially restart their cache?)
@@ -159,6 +167,7 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
             },
             // ?? we could have just done this to update the cache for the votes, but instead
             // ?? but he decided to do it another, way which includes reading and updating fragments
+            // ?? the added benefit is that he is able to use this method to color the buttons when the user votes
             // vote: (_result, args, cache, info) => {
             //   cache.invalidate("Query", "posts", { limit: 15 });
             // },
