@@ -1,4 +1,4 @@
-import { cacheExchange, Resolver } from "@urql/exchange-graphcache";
+import { cacheExchange, Resolver, Cache } from "@urql/exchange-graphcache";
 import {
   dedupExchange,
   Exchange,
@@ -92,6 +92,27 @@ const cursorPagination = (): Resolver => {
   };
 };
 
+const invalidateAllPosts = (cache: Cache) => {
+  // ? Looping over all of the paginated items / queries that we could possibly call
+  // ? and we invalidate all of them (essentially restart their cache?)
+  // ?? for output, check out the comments inside cursorPagination with the below variable names
+  const allFields = cache.inspectFields("Query");
+  const fieldInfos = allFields.filter((info) => info.fieldName === "posts");
+  // ? Loop to invalidate all (new) queries that will appear due to load more
+  fieldInfos.forEach((fi) => {
+    // console.log("start"); //used for testing
+    // console.log(cache.inspectFields("Query")); //used for testing
+
+    // ? when called, it will essentially update the cache
+    // ? by invalidating the query and refetch it from the server
+    // ? Invalidating a specific query
+    // ?? fi.arguments -> {"limit": 15}
+    cache.invalidate("Query", "posts", fi.arguments || {});
+    // console.log(cache.inspectFields("Query")); //used for testing
+    // console.log("end"); //used for testing
+  });
+};
+
 // The next-urql package includes setup for react-ssr-prepass already,
 // which automates a lot of the complexity of setting up server-side
 // rendering with urql
@@ -144,29 +165,10 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
               });
             },
             createPost: (_result, args, cache, info) => {
-              // ? Looping over all of the paginated items / queries that we could possibly call
-              // ? and we invalidate all of them (essentially restart their cache?)
-              // ?? for output, check out the comments inside cursorPagination with the below variable names
-              const allFields = cache.inspectFields("Query");
-              const fieldInfos = allFields.filter(
-                (info) => info.fieldName === "posts"
-              );
-              // ? Loop to invalidate all (new) queries that will appear due to load more
-              fieldInfos.forEach((fi) => {
-                // console.log("start"); //used for testing
-                // console.log(cache.inspectFields("Query")); //used for testing
-
-                // ? when called, it will essentially update the cache
-                // ? by invalidating the query and refetch it from the server
-                // ? Invalidating a specific query
-                // ?? fi.arguments -> {"limit": 15}
-                cache.invalidate("Query", "posts", fi.arguments || {});
-                // console.log(cache.inspectFields("Query")); //used for testing
-                // console.log("end"); //used for testing
-              });
+              invalidateAllPosts(cache);
             },
             // ?? we could have just done this to update the cache for the votes, but instead
-            // ?? but he decided to do it another, way which includes reading and updating fragments
+            // ?? but he decided to do it another, better way which includes reading and updating fragments
             // ?? the added benefit is that he is able to use this method to color the buttons when the user votes
             // vote: (_result, args, cache, info) => {
             //   cache.invalidate("Query", "posts", { limit: 15 });
@@ -235,6 +237,8 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
                   }
                 }
               );
+
+              invalidateAllPosts(cache);
             },
 
             register: (_result, args, cache, info) => {

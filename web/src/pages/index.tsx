@@ -27,7 +27,7 @@ const Index = () => {
   });
   const [{ data: meData }] = useMeQuery();
 
-  const [{ data, fetching }] = usePostsQuery({
+  const [{ data, error, fetching }] = usePostsQuery({
     variables,
   });
 
@@ -35,7 +35,12 @@ const Index = () => {
 
   // Note: 'fetching' is not affected and always returns false
   if (!data && !fetching) {
-    return <div>No posts...</div>;
+    return (
+      <div>
+        <div>Failed Query:</div>
+        <div>{error?.message}</div>
+      </div>
+    );
   }
   return (
     <Layout>
@@ -52,7 +57,7 @@ const Index = () => {
                   <UpdootSection post={p} />
                 </Box>
                 <Box flex={1}>
-                  <Flex alignItems={"center"}>
+                  <Flex alignItems={"center"} wordBreak={'break-all'}>
                     <NextLink href="/post/[id]" as={`/post/${p.id}`}>
                       <Link>
                         <Heading fontSize="xl">{p.title}</Heading>

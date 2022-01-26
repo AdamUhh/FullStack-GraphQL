@@ -17,6 +17,7 @@ import {
 import { getConnection } from "typeorm";
 import { isAuth } from "../middleware/isAuth";
 import { Post } from "../entities/Post";
+import { User } from "../entities/User";
 
 @InputType()
 class PostInput {
@@ -47,11 +48,41 @@ export class PostResolver {
   // From my understanding, you can essentially run code/conditions on a field
   // so in this case, we made a field called textSnippet that makes use of the text field
   // to run a condition to only take a small amount of text/data from the database
+  // note: Field Resolvers only run if you include it in the query
   @FieldResolver(() => String)
   textSnippet(@Root() root: Post) {
     let str = root.text;
     return str.length > 50 ? str.slice(0, 50 - 1).trim() + "..." : str;
     // return root.text.slice(0, 50);
+  }
+
+  @FieldResolver(() => User)
+  creator(@Root() post: Post, @Ctx() { userLoader }: MyContext) {
+    // ? this creator function is gonna be called on all queries
+    // so the dataloader will batch all the userId's into a single function call
+    // which are put into an array of numbers, which is then handled
+    // inside userLoader
+    return userLoader.load(post.creatorId);
+
+    // return User.findOne(post.creatorId);
+  }
+
+  @FieldResolver(() => Int, { nullable: true })
+  async voteStatus(
+    @Root() post: Post,
+    @Ctx() { req, updootLoader }: MyContext
+  ) {
+    if (!req.session.userId) {
+      return null;
+    }
+
+    const updoot = await updootLoader.load({
+      postId: post.id,
+      userId: req.session.userId,
+    });
+
+    // if user didnt vote, return null, else a 1 or -1
+    return updoot ? updoot.value : null;
   }
 
   @Mutation(() => Boolean)
@@ -188,9 +219,8 @@ export class PostResolver {
     // Adding pagination
     @Arg("limit", () => Int) limit: number,
     // first time we fetch post, we wont have a cursor, so it might be null (hence nullable)
-    @Arg("cursor", () => String, { nullable: true }) cursor: string | null, //ex: give me the posts after this point
+    @Arg("cursor", () => String, { nullable: true }) cursor: string | null //ex: give me the posts after this point
     // @Arg("offset") offset: number //ex: give me the posts after the tenth post
-    @Ctx() { req }: MyContext
   ): Promise<PaginatedPosts> {
     // return Post.find();
 
@@ -203,56 +233,23 @@ export class PostResolver {
 
     let replacements: any[] = [realLimitPlusOne];
 
-    if (req.session.userId) {
-      replacements.push(req.session.userId);
-    }
-
-    let cursorIndex = 3;
-    // ?? If there is a cursor, add the cursor date to replacements
     if (cursor) {
       replacements.push(new Date(parseInt(cursor)));
-      // ?? so if we are not logged in but we loaded more (paginated)
-      // ?? then this will prevent the problem where when $2 is not req.session.userId
-      // ?? it will not matter, since the gql will use the length of the replacements array
-      // ?? instead, and the code will not break
-      cursorIndex = replacements.length;
     }
 
-    // Explanation of json_build_object
-    // We need to change the way we format data as when we query, we get username: 'name here'
-    // BUT we require username to be inside of a creator object,
-    // like so: creator: {username:'name here'}
-    // this can be done via json_build_object('username', u.username)
-    // reference the post table with alias p and select all from it (p.*)
-    // so instead of 'select p.*, u.username from post p', we have the below
-    // the drawback of this approach is that even if you do not query for a username
-    // it will still return a username, since its inside the sql
-
     // ?? In postgres, there are multiple user tables, so we just gotta specify that we want the public schema
-    // ?? select the creator ('User') of the post where the public user id: u.id matches p."creatorId"
-    // ?? the optional 'select value from updoot...' is a sub query - it will be a field called voteStatus
-    // ?? select the values from updoot table, where userId = req, and postId = current post id (p.id)
     // ?? if there is a cursor, get data where post.createdAt is lesser than cursor date value
     // ?? order createdAt in descending order
     // ?? limit number of posts we can get
+
+    // with this approach, 16 queries will be run to get the posts
+    // therefore, we need to use something called dataloader to reduce this
+    // by patching it into a single sql statement, one for the post and one for the creator (@FieldResolver)
     const posts = await getConnection().query(
       `
-    select p.*,
-    json_build_object(
-      'id', u.id,
-      'username', u.username,
-      'email', u.email,
-      'createdAt', u."createdAt",
-      'updatedAt', u."updatedAt"
-      ) creator
-      ${
-        req.session.userId
-          ? ',(select value from updoot where "userId" = $2 and "postId" = p.id) "voteStatus"'
-          : ',null as "voteStatus"'
-      }
+    select p.*
     from post p
-    inner join public.user u on u.id = p."creatorId"
-    ${cursor ? `where p."createdAt" < $${cursorIndex}` : ""}
+    ${cursor ? `where p."createdAt" < $2` : ""}
     order by p."createdAt" DESC
     limit $1
     `,
@@ -293,7 +290,7 @@ export class PostResolver {
     // ?? so we create the sql ourselves
     // ?? but for simple things where we are just fetching a single relationship
     // ?? the below works
-    return Post.findOne(id, { relations: ["creator"] });
+    return Post.findOne(id);
   }
 
   @Mutation(() => Post)

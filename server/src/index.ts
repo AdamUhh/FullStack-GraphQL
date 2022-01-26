@@ -16,6 +16,8 @@ import { UserResolver } from "./resolvers/user";
 import { MyContext } from "./types";
 import path from "path";
 import { Updoot } from "./entities/Updoot";
+import { createUserLoader } from "./utils/createUserLoader";
+import { createUpdootLoader } from "./utils/createUpdootLoader";
 
 const main = async () => {
   const conn = await createConnection({
@@ -49,7 +51,7 @@ const main = async () => {
       origin: ["http://localhost:3000", "https://studio.apollographql.com"],
     })
   );
-    
+
   //? Redis, which stands for Remote Dictionary Server, is a fast, open source, in-memory, key-value data store
   //? In this case, we are using it as a cache store to store the users login data
   // In the documentation, they put the below code (that uses require)
@@ -94,6 +96,12 @@ const main = async () => {
       req,
       res,
       redis: redisClient,
+      userLoader: createUserLoader(),
+      // since the context is going to be run on every request
+      // a new user will be created on every request,
+      // so it batches and caches the loading of users within a single request
+      // i dont understand what he said... ;p
+      updootLoader: createUpdootLoader()
     }),
   });
 
