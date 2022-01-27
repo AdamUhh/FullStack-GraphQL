@@ -113,9 +113,9 @@ const invalidateAllPosts = (cache: Cache) => {
   });
 };
 
-// The next-urql package includes setup for react-ssr-prepass already,
-// which automates a lot of the complexity of setting up server-side
-// rendering with urql
+// ? The next-urql package includes setup for react-ssr-prepass already,
+// ? which automates a lot of the complexity of setting up server-side
+// ? rendering with urql
 export const createUrqlClient = (ssrExchange: any, ctx: any) => {
   // ?? This is an extremely important part, as it will send the user cookies
   // ?? this means that on ssr, we can access req.session.userId
@@ -186,13 +186,19 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
                 `,
                 { id: postId } as any
               );
-              console.log(data);
               if (data) {
-                if (data.voteStatus === args.value) return;
-                // ?? if we havent voted before, it should be a 1,
-                // ?? but if we have voted, we are switching out vote, so a 2
-                const newPoints =
-                  (data.points as number) + (!data.voteStatus ? 1 : 2) * value;
+                let newPoints;
+                // ? if the user voted before and wants to unvote
+                //! note: added this part
+                if (data.voteStatus === args.value) {
+                  newPoints = (data.points as number) + -1 * value;
+                } else {
+                  // ?? if we havent voted before, it should be a 1,
+                  // ?? but if we have voted, we are switching out vote, so a 2
+                  newPoints =
+                    (data.points as number) +
+                    (!data.voteStatus ? 1 : 2) * value;
+                }
                 cache.writeFragment(
                   gql`
                     fragment __ on Post {
@@ -200,7 +206,11 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
                       voteStatus
                     }
                   `,
-                  { id: postId, points: newPoints, voteStatus: value } as any
+                  {
+                    id: postId,
+                    points: newPoints,
+                    voteStatus: data.voteStatus === args.value ? 0 : value,
+                  } as any
                 );
               }
             },

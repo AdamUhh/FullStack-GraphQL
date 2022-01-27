@@ -106,6 +106,8 @@ export class PostResolver {
     // ? The user has voted on the post before
     // ?? if the updoot value is 1 and they are trying to change their vote (to downvote)
     if (updoot && updoot.value !== realValue) {
+      console.log("!==");
+
       // ?? tm -> transaction manager object - allows us to query stuff
       // ? catch the error and rollback the transaction (if we get an error)
       await getConnection().transaction(async (tm) => {
@@ -115,9 +117,9 @@ export class PostResolver {
         // ?? so for each post per user, it can only be a 1, 0, or -1
         await tm.query(
           `
-    update updoot
-    set value = $1
-    where "postId" = $2 and "userId" = $3
+          update updoot
+          set value = $1
+          where "postId" = $2 and "userId" = $3
         `,
           [realValue, postId, userId]
         );
@@ -131,10 +133,10 @@ export class PostResolver {
           set points = points + $1
           where id = $2
         `,
-          [2 * realValue, postId]
+        [updoot.value === 0 ? realValue : 2 * realValue, postId]
+          // [2 * realValue, postId]
           // ?? 2 * because if they already upvoted and they click downvote, it will go to -1 and not 0
           // ?? 0 if the user voted and unvoted, we need this logic or else it will calculate votes incorrectly (will be -2 instead of -1)
-          // [updoot.value === 0 ? realValue : 2 * realValue, postId]
         );
       });
     }
@@ -142,36 +144,38 @@ export class PostResolver {
     // ?? if the updoot value is 1 and they click on it again, it will reset to 0
     // @note: create this yourself since it seems he didnt account for it
     // ! @note: Add this part later, at the end of the tutorial, since he is still editing it later on
-    // else if (updoot && updoot.value === realValue) {
-    //   await getConnection().transaction(async (tm) => {
-    //     await tm.query(
-    //       `
-    //       update updoot
-    //       set value = $1
-    //       where "postId" = $2 and "userId" = $3
-    //       `,
-    //       [0, postId, userId]
-    //     );
+    else if (updoot && updoot.value === realValue) {
+      console.log("===");
+      console.log('updoot.value', updoot.value);
+      console.log("realValue", realValue);
+      await getConnection().transaction(async (tm) => {
+        await tm.query(
+          `
+          update updoot
+          set value = $1
+          where "postId" = $2 and "userId" = $3
+          `,
+          [0, postId, userId]
+        );
 
-    //     // ?? update the points on the post
-    //     await tm.query(
-    //       `
-    //       update post
-    //       set points = points + $1
-    //       where id = $2
-    //       `,
-    //       [-1 * realValue, postId]
-    //     );
-    //   });
-    // }
-    else if (!updoot) {
+        // ?? update the points on the post
+        await tm.query(
+          `
+          update post
+          set points = points + $1
+          where id = $2
+          `,
+          [-1 * realValue, postId]
+        );
+      });
+    } else if (!updoot) {
       // they have not voted before
       await getConnection().transaction(async (tm) => {
         // insert the new values
         await tm.query(
           `
-    insert into updoot ("userId", "postId", value)
-    values ($1, $2, $3)
+          insert into updoot ("userId", "postId", value)
+          values ($1, $2, $3)
         `,
           [userId, postId, realValue]
         );
@@ -180,10 +184,10 @@ export class PostResolver {
 
         await tm.query(
           `
-    update post
-    set points = points + $1
-    where id = $2
-      `,
+          update post
+          set points = points + $1
+          where id = $2
+        `,
           [realValue, postId]
         );
       });

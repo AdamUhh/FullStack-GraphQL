@@ -23,9 +23,9 @@ export const UpdootSection: React.FC<UpdootSectionProps> = ({ post }) => {
     >
       <IconButton
         onClick={async () => {
-          if (post.voteStatus === 1) {
-            return;
-          }
+          // if (post.voteStatus === 1) {
+          //   return;
+          // }
           setLoadingState("updoot-loading");
           await vote({ postId: post.id, value: 1 });
           setLoadingState("not-loading");
@@ -38,9 +38,9 @@ export const UpdootSection: React.FC<UpdootSectionProps> = ({ post }) => {
       {post.points}
       <IconButton
         onClick={async () => {
-          if (post.voteStatus === -1) {
-            return;
-          }
+          // if (post.voteStatus === -1) {
+          //   return;
+          // }
           setLoadingState("downdoot-loading");
           await vote({ postId: post.id, value: -1 });
           setLoadingState("not-loading");
