@@ -2,4 +2,5 @@ server/node_modules
 server/dist/
 web/.next/
 web/node_modules
+/web/.env.local
 /How-To-Push-To-Github.md

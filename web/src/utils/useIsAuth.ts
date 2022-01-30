@@ -3,13 +3,13 @@ import { useEffect } from "react";
 import { useMeQuery } from "../generated/graphql";
 
 export const useIsAuth = () => {
-  const [{ data, fetching }] = useMeQuery();
+  const { data, loading } = useMeQuery();
   const router = useRouter();
 
   useEffect(() => {
     // When we are not loading and when the user is not logged in
     // will automatically redirect to /login page
-    if (!fetching && !data?.me) {
+    if (!loading && !data?.me) {
       // By adding ?next=" + router.pathname
       // ex: when the user clicks /create-post and is not logged in,
       // he will be redirected to /login - after logging in, normally he will
@@ -20,5 +20,5 @@ export const useIsAuth = () => {
       router.replace("/login?next=" + router.pathname);
       //   router.replace("/login");
     }
-  }, [fetching, data, router]);
+  }, [loading, data, router]);
 };

@@ -5,32 +5,26 @@ import {
   Heading,
   Link,
   Stack,
-  Text
+  Text,
 } from "@chakra-ui/react";
-import { withUrqlClient } from "next-urql";
 import NextLink from "next/link";
-import { useState } from "react";
 import { EditDeletePostBtn } from "../components/EditDeletePostBtn";
 import { Layout } from "../components/Layout";
 import { UpdootSection } from "../components/UpdootSection";
-import {
-  usePostsQuery
-} from "../generated/graphql";
-import { createUrqlClient } from "../utils/createUrqlClient";
+import { usePostsQuery } from "../generated/graphql";
+import { withApollo } from "../utils/withApollo";
 
 const Index = () => {
-  const [variables, setVariables] = useState({
-    limit: 15,
-    cursor: null as null | string,
+  const { data, error, loading, fetchMore, variables } = usePostsQuery({
+    variables: {
+      limit: 15,
+      cursor: null as null | string,
+    },
+    notifyOnNetworkStatusChange: true,
   });
-
-  const [{ data, error, fetching }] = usePostsQuery({
-    variables,
-  });
-
 
   // Note: 'fetching' is not affected and always returns false
-  if (!data && !fetching) {
+  if (!data && !loading) {
     return (
       <div>
         <div>Failed Query:</div>
@@ -40,7 +34,7 @@ const Index = () => {
   }
   return (
     <Layout>
-      {!data && fetching ? (
+      {!data && loading ? (
         <div>Loading...</div>
       ) : (
         <Stack spacing={8}>
@@ -53,7 +47,7 @@ const Index = () => {
                   <UpdootSection post={p} />
                 </Box>
                 <Box flex={1}>
-                  <Flex alignItems={"center"} wordBreak={'break-all'}>
+                  <Flex alignItems={"center"} wordBreak={"break-all"}>
                     <NextLink href="/post/[id]" as={`/post/${p.id}`}>
                       <Link>
                         <Heading fontSize="xl">{p.title}</Heading>
@@ -76,11 +70,34 @@ const Index = () => {
           <Button
             m="auto"
             my={8}
-            isLoading={fetching}
+            isLoading={loading}
             onClick={() =>
-              setVariables({
-                limit: variables.limit,
-                cursor: data.posts.posts[data.posts.posts.length - 1].createdAt, // get all items after the last element in the list
+              fetchMore({
+                variables: {
+                  limit: variables?.limit,
+                  cursor:
+                    data.posts.posts[data.posts.posts.length - 1].createdAt, // get all items after the last element in the list
+                },
+                // this is the old apollo method that uses updateQuery
+                // go to __app.tsx for the new apollo method
+                // updateQuery: (prevValue, { fetchMoreResult }): PostsQuery => {
+                //   if (!fetchMoreResult) {
+                //     return prevValue as PostsQuery;
+                //   }
+
+                // take the two results and turn them into a single post query
+                // return {
+                //   __typename: "Query",
+                //   posts: {
+                //     __typename: "PaginatedPosts",
+                //     hasMore: (fetchMoreResult as PostsQuery).posts.hasMore,
+                //     posts: [
+                //       ...(prevValue as PostsQuery).posts.posts,
+                //       ...(fetchMoreResult as PostsQuery).posts.posts,
+                //     ],
+                //   },
+                // };
+                // },
               })
             }
           >
@@ -92,8 +109,12 @@ const Index = () => {
   );
 };
 
-// sets up the urql provider to allow for server-side rendering
-// with this set up, we can now easily toggle between having ssr or not
-export default withUrqlClient(createUrqlClient, { ssr: true })(Index);
-// watch around 3:55:00 onwards in the vid to understand not having ssr
-// ssr provides good SEO
+// ? sets up the urql provider to allow for server-side rendering
+// ? with this set up, we can now easily toggle between having ssr or not
+// export default withUrqlClient(createUrqlClient, { ssr: true })(Index);
+// ? watch around 3:55:00 onwards in the vid to understand not having ssr
+// ? ssr provides good SEO
+//
+// ? no longer needed for apollo
+export default withApollo({ ssr: true })(Index);
+// export default Index;

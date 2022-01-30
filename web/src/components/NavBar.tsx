@@ -4,23 +4,25 @@ import { useLogoutMutation, useMeQuery } from "../generated/graphql";
 import { isServer } from "../utils/isServer";
 import NextLink from "next/link";
 import { useRouter } from "next/router";
+import { useApolloClient } from "@apollo/client";
 
 interface NavBarProps {}
 
 export const NavBar: React.FC<NavBarProps> = ({}) => {
   const router = useRouter();
-  const [{ fetching: logoutFetching }, logout] = useLogoutMutation();
+  const [logout, { loading: logoutFetching }] = useLogoutMutation();
+  const apolloClient = useApolloClient();
   // get the current user (inside data.me)
-  const [{ data, fetching }] = useMeQuery({
-    // when on ssr, 'pause' stops it from fetching the current user via 'isServer()'
+  const { data, loading } = useMeQuery({
+    // when on ssr, 'skip' stops it from fetching the current user via 'isServer()'
     // by checking if the request/func was made from the server or client?
     // Because we have our Navbar in the Index.ts and we set ssr to true,
-    // without 'pause', it is making an extra request (to useMeQuery) on the server (everytime a page is server-side rendered (Index.ts))
+    // without 'skip', it is making an extra request (to useMeQuery) on the server (everytime a page is server-side rendered (Index.ts))
     // and the nextjs server does not have a cookie aswell, so it returns null
     // (because its not sending out a cookie so we are not getting a user)
-    // therefore, we can use pause to stop it from fetching the current user (from the server specifically)
+    // therefore, we can use skip to stop it from fetching the current user (from the server specifically)
     // by checking if the window variable is defined (on the server, it is not defined)
-    pause: isServer(),
+    skip: isServer(),
     // @note: this is now pointless as we are getting the cookies from the 'vote' inside /utils/createUrqlClient.ts/
     // @note: however, he still decides to keep it, as he doesnt really feel like making an extra request to the server
     // @note: anyway, if he were to remove this, then all requests will be made/fetched on the server, and will not do it from the browser
@@ -36,7 +38,7 @@ export const NavBar: React.FC<NavBarProps> = ({}) => {
   }, []);
 
   let body = null;
-  if (fetching) {
+  if (loading) {
     // data is loading
   } else if (!data?.me) {
     // user not logged in
@@ -64,7 +66,9 @@ export const NavBar: React.FC<NavBarProps> = ({}) => {
           variant="link"
           onClick={async () => {
             await logout();
-            router.reload();
+            // refreshes everything without reloading the page
+            apolloClient.resetStore();
+            // router.reload();
           }}
           isLoading={logoutFetching}
         >

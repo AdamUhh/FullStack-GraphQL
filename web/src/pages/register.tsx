@@ -1,13 +1,12 @@
 import { Box, Button } from "@chakra-ui/react";
 import { Form, Formik } from "formik";
-import { withUrqlClient } from "next-urql";
 import { useRouter } from "next/router";
 import React from "react";
 import { InputField } from "../components/InputField";
 import { Wrapper } from "../components/Wrapper";
-import { useRegisterMutation } from "../generated/graphql";
-import { createUrqlClient } from "../utils/createUrqlClient";
+import { MeDocument, MeQuery, useRegisterMutation } from "../generated/graphql";
 import { toErrorMap } from "../utils/toErrorMap";
+import { withApollo } from "../utils/withApollo";
 
 interface registerProps {}
 
@@ -19,13 +18,26 @@ const Register: React.FC<registerProps> = ({}) => {
   // The executeMutation function may be used to start executing a mutation
   // so when you submit, it goes to this register func which then runs the useMutation? something like that maybe?
   // Additionally, useRegisterMutation replaced useMutation at around 2:50:00 from the vid
-  const [, register] = useRegisterMutation();
+  const [register] = useRegisterMutation();
   return (
     <Wrapper variant="small">
       <Formik
         initialValues={{ email: "", username: "", password: "" }}
         onSubmit={async (values, { setErrors }) => {
-          const res = await register({ options: values });
+          const res = await register({
+            variables: { options: values },
+            update: (cache, { data }) => {
+              // we are getting the data, which is the result of the register
+              // and we are sticking in the cache for the meQuery
+              cache.writeQuery<MeQuery>({
+                query: MeDocument,
+                data: {
+                  __typename: "Query",
+                  me: data?.register.user,
+                },
+              });
+            },
+          });
           if (res.data?.register.errors) {
             // The errors that we are getting back from graphql look like this
             // [{field: 'username', message: 'something wrong'}]
@@ -36,7 +48,7 @@ const Register: React.FC<registerProps> = ({}) => {
           }
         }}
       >
-        {({ values, handleChange, isSubmitting }) => (
+        {({ isSubmitting }) => (
           <Form>
             <InputField
               name="username"
@@ -69,6 +81,8 @@ const Register: React.FC<registerProps> = ({}) => {
   );
 };
 
-// export default Register;
 // Now, anytime we want to access Urql, we gotta wrap it with withUrqlClient
-export default withUrqlClient(createUrqlClient)(Register);
+// export default withUrqlClient(createUrqlClient)(Register);
+// export default Register;
+export default withApollo({ssr: false})(Register);
+

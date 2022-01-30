@@ -17,8 +17,8 @@ import {
 } from "../generated/graphql";
 import { betterUpdateQuery } from "./betterUpdateQuery";
 import Router from "next/router";
-import gql from "graphql-tag";
 import { isServer } from "./isServer";
+import { gql } from "@apollo/client";
 
 // Anytime there is an error in anything that is run, its gonna come here
 const errorExchange: Exchange =
@@ -129,7 +129,7 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
   }
 
   return {
-    url: "http://localhost:5000/graphql",
+    url: process.env.NEXT_PUBLIC_API_URL as string,
     fetchOptions: {
       credentials: "include" as const,
       headers: cookie
@@ -186,6 +186,7 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
                 `,
                 { id: postId } as any
               );
+
               if (data) {
                 let newPoints;
                 // ? if the user voted before and wants to unvote

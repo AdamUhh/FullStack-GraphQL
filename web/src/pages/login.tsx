@@ -1,14 +1,13 @@
 import { Box, Button, Flex, Link } from "@chakra-ui/react";
 import { Form, Formik } from "formik";
-import { withUrqlClient } from "next-urql";
+import NextLink from "next/link";
 import { useRouter } from "next/router";
 import React from "react";
 import { InputField } from "../components/InputField";
 import { Wrapper } from "../components/Wrapper";
-import { useLoginMutation } from "../generated/graphql";
-import { createUrqlClient } from "../utils/createUrqlClient";
+import { MeDocument, MeQuery, useLoginMutation } from "../generated/graphql";
 import { toErrorMap } from "../utils/toErrorMap";
-import NextLink from "next/link";
+import { withApollo } from "../utils/withApollo";
 const Login: React.FC<{}> = ({}) => {
   const router = useRouter();
   // Accepts a single query argument of type string | DocumentNode
@@ -17,13 +16,27 @@ const Login: React.FC<{}> = ({}) => {
   // The executeMutation function may be used to start executing a mutation
   // so when you submit, it goes to this register func which then runs the useMutation? something like that maybe?
   // Additionally, useRegisterMutation replaced useMutation at around 2:50:00 from the vid
-  const [, login] = useLoginMutation();
+  const [login] = useLoginMutation();
   return (
     <Wrapper variant="small">
       <Formik
         initialValues={{ usernameOrEmail: "", password: "" }}
         onSubmit={async (values, { setErrors }) => {
-          const res = await login(values);
+          const res = await login({
+            variables: values,
+            update: (cache, { data }) => {
+              // we are getting the data, which is the result of the register
+              // and we are sticking in the cache for the meQuery
+              cache.writeQuery<MeQuery>({
+                query: MeDocument,
+                data: {
+                  __typename: "Query",
+                  me: data?.login.user,
+                },
+              });
+              cache.evict({ fieldName: "posts:{}" });
+            },
+          });
           if (res.data?.login.errors) {
             // The errors that we are getting back from graphql look like this
             // [{field: 'username', message: 'something wrong'}]
@@ -45,7 +58,7 @@ const Login: React.FC<{}> = ({}) => {
           }
         }}
       >
-        {({ values, handleChange, isSubmitting }) => (
+        {({ isSubmitting }) => (
           <Form>
             <InputField
               name="usernameOrEmail"
@@ -83,4 +96,6 @@ const Login: React.FC<{}> = ({}) => {
 };
 
 // export default Login;
-export default withUrqlClient(createUrqlClient)(Login);
+// export default withUrqlClient(createUrqlClient)(Login);
+// export default Login;
+export default withApollo({ssr: false})(Login);

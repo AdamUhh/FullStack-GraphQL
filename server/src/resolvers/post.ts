@@ -145,9 +145,6 @@ export class PostResolver {
     // @note: create this yourself since it seems he didnt account for it
     // ! @note: Add this part later, at the end of the tutorial, since he is still editing it later on
     else if (updoot && updoot.value === realValue) {
-      console.log("===");
-      console.log('updoot.value', updoot.value);
-      console.log("realValue", realValue);
       await getConnection().transaction(async (tm) => {
         await tm.query(
           `

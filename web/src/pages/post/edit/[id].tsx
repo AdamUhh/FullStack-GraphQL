@@ -11,22 +11,23 @@ import {
 } from "../../../generated/graphql";
 import { createUrqlClient } from "../../../utils/createUrqlClient";
 import { useGetIntId } from "../../../utils/useGetIntId";
+import { withApollo } from "../../../utils/withApollo";
 
 const EditPost = ({}) => {
   const router = useRouter();
   const intId = useGetIntId();
-  const [{ data, error, fetching }] = usePostQuery({
+  const { data, error, loading } = usePostQuery({
     // ?? if we have a -1, we know we have a bad url parameter,
     // ?? so dont bother sending a request to the server,
     // ?? just pause the query before it is run
-    pause: intId === -1,
+    skip: intId === -1,
     variables: {
       id: intId,
     },
   });
-  const [, updatePost] = useUpdatePostMutation();
+  const [updatePost] = useUpdatePostMutation();
 
-  if (fetching)
+  if (loading)
     return (
       <Layout>
         <Box>Loading...</Box>
@@ -55,7 +56,7 @@ const EditPost = ({}) => {
         initialValues={{ title: data.post.title, text: data.post.text }}
         onSubmit={async (values) => {
           // ...values is the title and text
-          await updatePost({ id: intId, ...values });
+          await updatePost({ variables: { id: intId, ...values } });
           //   router.push("/");
           router.back(); // takes you back to where you were before you clicked the edit button
         }}
@@ -88,4 +89,7 @@ const EditPost = ({}) => {
   );
 };
 
-export default withUrqlClient(createUrqlClient)(EditPost);
+// export default withUrqlClient(createUrqlClient)(EditPost);
+// export default EditPost;
+export default withApollo({ssr: false})(EditPost);
+
